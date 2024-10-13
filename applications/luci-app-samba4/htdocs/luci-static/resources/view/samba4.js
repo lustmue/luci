@@ -127,6 +127,7 @@ return view.extend({
 		o.enabled = 'yes';
 		o.disabled = 'no';
 		o.default = 'no';
+		o.depends('guest_ok', 'yes');
 
 		o = s.option(form.Flag, 'inherit_owner', _('Inherit owner'));
 		o.enabled = 'yes';
