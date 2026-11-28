@@ -1215,6 +1215,86 @@ return baseclass.extend({
 			o.value('3', _('Low'));
 		}
 
+		const wolInfo = dev ? dev.getWOL() : null;
+		const supportedWol = Array.isArray(wolInfo?.supported)
+			? wolInfo.supported
+			: null;
+		const configuredWol = dev
+			? L.toArray(uci.get('network', dev.getName(), 'wol'))
+			: [];
+
+		if (!dev || dev.hasWOL() || configuredWol.length > 0) {
+			const allWolModes = [
+				[ 'p', _('PHY activity (p)') ],
+				[ 'u', _('Unicast activity (u)') ],
+				[ 'm', _('Multicast activity (m)') ],
+				[ 'b', _('Broadcast activity (b)') ],
+				[ 'a', _('ARP activity (a)') ],
+				[ 'g', _('Magic packet (g)') ]
+			];
+
+			const wolModeOpt = this.replaceOption(s, 'devadvanced', form.ListValue, 'wol_mode', _('Wake-on-LAN'));
+			wolModeOpt.depends('type', '');
+			wolModeOpt.default = '';
+			wolModeOpt.value('', _('Default'));
+			wolModeOpt.value('d', _('Disabled'));
+			wolModeOpt.value('e', _('Enabled'));
+
+			wolModeOpt.cfgvalue = function(section_id) {
+				const vals = L.toArray(this.map.data.get('network', section_id, 'wol'));
+				if (!vals.length)
+					return '';
+				return vals.includes('d') ? 'd' : 'e';
+			};
+
+			wolModeOpt.write = function(section_id, formvalue) {
+				if (formvalue === 'd')
+					this.map.data.set('network', section_id, 'wol', ['d']);
+				else if (!formvalue)
+					this.map.data.unset('network', section_id, 'wol');
+			};
+
+			wolModeOpt.remove = function(section_id) {
+				this.map.data.unset('network', section_id, 'wol');
+			};
+
+			o = this.replaceOption(s, 'devadvanced', form.MultiValue, 'wol', _('Wake-on-LAN modes'));
+			o.depends({ type: '', wol_mode: 'e' });
+			o.rmempty = false;
+
+			for (const [ flag, label ] of allWolModes) {
+				if (!supportedWol || !supportedWol.length || supportedWol.includes(flag) || configuredWol.includes(flag))
+					o.value(flag, label);
+			}
+
+			if (!supportedWol || !supportedWol.length || supportedWol.includes('g'))
+				o.default = [ 'g' ];
+			else if (supportedWol.length === 1)
+				o.default = supportedWol;
+
+			const wolModesOpt = o;
+			wolModeOpt.onchange = function(ev, section_id, value) {
+				if (value === 'e') {
+					const uiEl = wolModesOpt.getUIElement(section_id);
+					if (uiEl && !L.toArray(uiEl.getValue()).length && wolModesOpt.default)
+						uiEl.setValue(wolModesOpt.default);
+				}
+			};
+
+			o.validate = function(section_id, value) {
+				const vals = L.toArray(value);
+				if (!vals.length)
+					return _('At least one Wake-on-LAN mode must be selected');
+				return true;
+			};
+
+			o.remove = function(section_id) {
+				const vals = L.toArray(this.map.data.get('network', section_id, 'wol'));
+				if (!vals.includes('d'))
+					this.map.data.unset('network', section_id, 'wol');
+			};
+		}
+
 		o = this.replaceOption(s, 'devadvanced', cbiFlagTristate, 'promisc', _('Enable promiscuous mode'));
 		o.sysfs_default = (dev && dev.dev && dev.dev.flags) ? dev.dev.flags.promisc : null;
 
